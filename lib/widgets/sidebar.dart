@@ -1,0 +1,183 @@
+import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import '../theme/app_colors.dart';
+import '../theme/app_icons.dart';
+import '../l10n/app_language.dart';
+import '../utils/auth_guard.dart';
+
+/// Sidebar navigation used by Doctor and Admin dashboards.
+/// The list of items is built based on the current user role.
+class Sidebar extends StatefulWidget {
+  const Sidebar({super.key});
+
+  @override
+  State<Sidebar> createState() => _SidebarState();
+}
+
+class _SidebarState extends State<Sidebar> {
+  String _name = '';
+  String _subtitle = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUser();
+  }
+
+  Future<void> _loadUser() async {
+    final user = await AuthService.getUser();
+    if (user != null && mounted) {
+      final role = AuthGuard.currentUserRole ?? '';
+      final name = user['name'] as String? ?? '';
+      setState(() {
+        _name = role == 'doctor' ? 'Dr. $name' : name;
+        _subtitle = role == 'doctor'
+            ? (user['specialization'] as String? ?? 'Doctor')
+            : role == 'admin'
+                ? 'Administrator'
+                : role;
+      });
+    }
+  }
+
+  List<_NavItem> _items(BuildContext context) {
+    final role = AuthGuard.currentUserRole;
+    if (role == 'doctor') {
+      return [
+        _NavItem('requests', AppIcons.consultations, 'Accept Consultation'),
+        _NavItem('consultations', AppIcons.consultations, 'Consultations'),
+        _NavItem('prescriptions', AppIcons.prescriptions, 'Prescriptions'),
+      ];
+    } else if (role == 'admin') {
+      return [
+        _NavItem(
+            'dashboard', AppIcons.dashboard, context.tr('admin_dashboard')),
+        _NavItem('users', AppIcons.users, context.tr('users')),
+        _NavItem('doctors', AppIcons.medicalServices, context.tr('doctors')),
+        _NavItem('patients', AppIcons.patients, context.tr('patients')),
+        _NavItem(
+            'appointments', AppIcons.appointments, context.tr('appointments')),
+        _NavItem('consultations', AppIcons.consultations,
+            context.tr('consultations')),
+        _NavItem('prescriptions', AppIcons.prescriptions,
+            context.tr('prescriptions')),
+        _NavItem('pharmacies', AppIcons.pharmacies, context.tr('pharmacies')),
+        _NavItem('healthcare-facilities', AppIcons.facilities,
+            context.tr('facilities')),
+        _NavItem('reports', AppIcons.reports, context.tr('reports')),
+        _NavItem('settings', AppIcons.settings, context.tr('settings')),
+      ];
+    }
+    return [];
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final items = _items(context);
+    final currentPath = GoRouterState.of(context).uri.path;
+    return Container(
+      color: AppColors.primaryBg,
+      child: Column(
+        children: [
+          const SizedBox(height: 20),
+          // Navigation list
+          Expanded(
+            child: ListView.builder(
+              itemCount: items.length,
+              itemBuilder: (c, i) {
+                final item = items[i];
+                final route = '/${AuthGuard.currentUserRole}/${item.route}';
+                final selected = currentPath == route;
+                return Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                  child: ListTile(
+                    selected: selected,
+                    selectedTileColor: AppColors.leafGreenPale,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 14),
+                    minVerticalPadding: 10,
+                    leading: Icon(
+                      item.icon,
+                      color: selected
+                          ? AppColors.primaryAccent
+                          : AppColors.textMuted,
+                    ),
+                    title: Text(
+                      item.label,
+                      style: TextStyle(
+                        color: selected
+                            ? AppColors.leafGreenDeep
+                            : AppColors.textDark,
+                        fontWeight:
+                            selected ? FontWeight.w700 : FontWeight.w500,
+                      ),
+                    ),
+                    onTap: () => context.go(route),
+                  ),
+                );
+              },
+            ),
+          ),
+          // Bottom profile section
+          const Divider(height: 1),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
+            child: Row(
+              children: [
+                CircleAvatar(
+                  radius: 20,
+                  backgroundColor: AppColors.primaryAccent,
+                  child: Text(
+                    _name.isNotEmpty ? _name[0].toUpperCase() : '?',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.textDark,
+                      fontSize: 16,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _name.isNotEmpty ? _name : '—',
+                        style: const TextStyle(fontWeight: FontWeight.w600),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      Text(
+                        _subtitle,
+                        style:
+                            const TextStyle(fontSize: 12, color: Colors.grey),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(AppIcons.logout, size: 20),
+                  onPressed: () async {
+                    AuthGuard.onLogout();
+                    await AuthService.logout();
+                    if (context.mounted) context.go('/onboarding');
+                  },
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _NavItem {
+  final String route;
+  final IconData icon;
+  final String label;
+  const _NavItem(this.route, this.icon, this.label);
+}
